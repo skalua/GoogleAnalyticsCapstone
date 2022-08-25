@@ -1,0 +1,373 @@
+# 1 - load libraries
+library(tidyverse)
+library(lubridate)
+library(hms)
+library(data.table)
+
+# importing data from January 2021 to December 2021)
+jan01_df <- read.csv("202101-divvy-tripdata.csv")
+feb02_df <- read.csv("202102-divvy-tripdata.csv")
+mar03_df <- read.csv("202103-divvy-tripdata.csv")
+apr04_df <- read.csv("202104-divvy-tripdata.csv")
+may05_df <- read.csv("202105-divvy-tripdata.csv")
+jun06_df <- read.csv("202106-divvy-tripdata.csv")
+jul07_df <- read.csv("202107-divvy-tripdata.csv")
+aug08_df <- read.csv("202108-divvy-tripdata.csv")
+sep09_df <- read.csv("202109-divvy-tripdata.csv")
+oct10_df <- read.csv("202110-divvy-tripdata.csv")
+nov11_df <- read.csv("202111-divvy-tripdata.csv")
+dec12_df <- read.csv("202112-divvy-tripdata.csv")
+
+
+
+# 2 merged all datasets into a single dataframe
+cyclistic_df <- rbind(jan01_df, feb02_df, mar03_df, apr04_df, may05_df, jun06_df, jul07_df, aug08_df, sep09_df, oct10_df, nov11_df, dec12_df)
+
+
+
+# 3 cleaned up data to prepare for analysis -- removed individual month data frame + created new data frame to contain new columns
+remove(jan01_df, feb02_df, mar03_df, apr04_df, may05_df, jun06_df, jul07_df, aug08_df, sep09_df, oct10_df, nov11_df, dec12_df)
+cyclistic_date <- cyclistic_df
+
+
+
+# 4 created new columns for: 
+#ride length
+cyclistic_date$ride_length <- difftime(cyclistic_df$ended_at, cyclistic_df$started_at, units = "mins")
+
+# date
+cyclistic_date$date <- as.Date(cyclistic_date$started_at)
+
+# day of week
+cyclistic_date$day_of_week <- wday(cyclistic_df$started_at)
+cyclistic_date$day_of_week <- format(as.Date(cyclistic_date$date), "%A")
+
+# month
+cyclistic_date$month <- format(as.Date(cyclistic_date$date), "%m")
+
+cyclistic_date <- cyclistic_date %>% mutate(month =
+                                              case_when(month == "01" ~ "January",
+                                                        month == "02" ~ "February",
+                                                        month == "03" ~ "March",
+                                                        month == "04" ~ "April",
+                                                        month == "05" ~ "May",
+                                                        month == "06" ~ "June",
+                                                        month == "07" ~ "July",
+                                                        month == "08" ~ "August",
+                                                        month == "09" ~ "September",
+                                                        month == "10" ~ "October",
+                                                        month == "11" ~ "November",
+                                                        month == "12" ~ "December"))
+
+#day
+cyclistic_date$day <- format(as.Date(cyclistic_date$date), "%d")
+
+#year
+cyclistic_date$year <- format(as.Date(cyclistic_date$date), "%Y")
+
+#time
+cyclistic_date$time <- time(cyclistic_date$started_at)
+cyclistic_date$time <- as.POSIXlt.character(cyclistic_date$started_at, "%H:%M:%S", )
+cyclistic_date$time <- format(as_hms(cyclistic_date$time), "%H:%M:%S")
+
+#hour
+cyclistic_date$hour <- format(as.POSIXct(cyclistic_date$time, format="%H:%M:%S"), "%H")
+
+#season
+cyclistic_date <- cyclistic_date %>% mutate(season =
+                                              case_when(month == "January" ~ "Winter",
+                                                        month == "February" ~ "Winter",
+                                                        month == "March" ~ "Spring",
+                                                        month == "April" ~ "Spring",
+                                                        month == "May" ~ "Spring",
+                                                        month == "June" ~ "Summer",
+                                                        month == "July" ~ "Summer",
+                                                        month == "August" ~ "Summer",
+                                                        month == "September" ~ "Fall",
+                                                        month == "October" ~ "Fall",
+                                                        month == "November" ~ "Fall",
+                                                        month == "December" ~ "Winter"))
+
+# time of day
+cyclistic_date <- cyclistic_date %>% mutate( time_of_day = 
+                                               case_when(hour == "00" ~ "Night",
+                                                         hour == "01" ~ "Night",
+                                                         hour == "02" ~ "Night",
+                                                         hour == "03" ~ "Night",
+                                                         hour == "04" ~ "Night",
+                                                         hour == "05" ~ "Night",
+                                                         hour == "06" ~ "Morning",
+                                                         hour == "07" ~ "Morning",
+                                                         hour == "08" ~ "Morning",
+                                                         hour == "09" ~ "Morning",
+                                                         hour == "10" ~ "Morning",
+                                                         hour == "11" ~ "Morning",
+                                                         hour == "12" ~ "Afternoon",
+                                                         hour == "13" ~ "Afternoon",
+                                                         hour == "14" ~ "Afternoon",
+                                                         hour == "15" ~ "Afternoon",
+                                                         hour == "16" ~ "Afternoon",
+                                                         hour == "17" ~ "Afternoon",
+                                                         hour == "18" ~ "Evening",
+                                                         hour == "19" ~ "Evening",
+                                                         hour == "20" ~ "Evening",
+                                                         hour == "21" ~ "Evening",
+                                                         hour == "22" ~ "Evening",
+                                                         hour == "23" ~ "Evening"))
+
+
+
+
+# 5 cleaned the data: removed duplicate rows
+cyclistic_date <- distinct(cyclistic_date)
+
+# removed blank rows
+cyclistic_date <- na.omit(cyclistic_date)
+
+# removed columns where ride_length is 0 or negative
+cyclistic_date <- cyclistic_date[!(cyclistic_date$ride_length <=0),]
+
+# removed rows that I wont be using
+cyclistic_date <- cyclistic_date %>%
+  select(-c(ride_id, start_station_id, end_station_id, start_lat, start_lng, end_lng, end_lat, start_station_name, end_station_name))
+
+
+
+
+# 6 Calculations
+# total number of rides
+total_number_of_rides <- nrow(cyclistic_date)
+
+# total rides per member type
+total_rides_per_member_type <- cyclistic_date %>%
+  group_by(member_casual) %>%
+  count(member_casual)
+
+# total rides per type of bike and member type
+total_rides_per_bike_type_and_member_type <- cyclistic_date %>%
+  group_by(member_casual, rideable_type) %>%
+  count(rideable_type)
+
+
+# total rides per hour and member type 
+cyclistic_date %>%
+  group_by(member_casual) %>%
+  count(hour) %>%
+  print(n = 48)
+
+
+# total rides per time of day and member type
+total_rides_per_time_of_day_and_member_type <- cyclistic_date %>%
+  group_by(time_of_day, member_casual) %>%
+  count(time_of_day)
+cyclistic_date %>%
+  group_by(time_of_day) %>%
+  count(time_of_day)
+## morning
+cyclistic_date %>%
+  filter(time_of_day == "Morning") %>%
+  count(time_of_day)
+## afternoon
+cyclistic_date %>%
+  filter(time_of_day == "Afternoon") %>%
+  count(time_of_day)
+## evening
+cyclistic_date %>%
+  filter(time_of_day == "Evening") %>%
+  count(time_of_day)
+## night
+cyclistic_date %>%
+  filter(time_of_day == "Night") %>%
+  count(time_of_day)
+
+# total rides per day of week and member type
+total_rides_per_day_of_week_and_member_type <- cyclistic_date %>%
+  group_by(member_casual) %>%
+  count(day_of_week)
+
+cyclistic_date %>%
+  count(day_of_week)
+
+# total rides per day of the month and member type
+total_rides_per_day_of_month_and_member_type <- cyclistic_date %>%
+  group_by(member_casual) %>%
+  count(day) %>%
+  print(n = 62)
+
+# total rides per month and member type
+total_rides_per_month_and_member_type <- cyclistic_date %>%
+  group_by(member_casual) %>%
+  count(month) %>%
+  print(n = 24)
+
+# total rides per season and member type
+total_rides_per_season_and_member_type <- cyclistic_date %>%
+  group_by(season, member_casual) %>%
+  count(season)
+cyclistic_date %>%
+  group_by(season) %>%
+  count(season)
+## spring
+cyclistic_date %>%
+  filter(season == "Spring") %>%
+  count(season)
+## summer
+cyclistic_date %>%
+  filter(season == "Summer") %>%
+  count(season)
+## fall
+cyclistic_date %>%
+  filter(season == "Fall") %>%
+  count(season)
+#winter
+cyclistic_date %>%
+  filter(season =="Winter") %/%
+  count(season)
+
+
+
+
+# 7 Calculations for average ride length
+# total average ride length = 20.98 mins
+cyclistic_avgRide <- print(mean(cyclistic_date$ride_length))
+
+# average ride length per member type
+cyclistic_date %>% 
+  group_by(member_casual) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+
+# average ride length per type of bike and member type
+cyclistic_date %>%
+  group_by(member_casual, rideable_type) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+
+cyclistic_date %>%
+  group_by(rideable_type) %>%
+  summarise_at(vars(ride_length),
+            list(time = mean))
+
+# average ride length per hour and member type
+cyclistic_date %>%
+  group_by(member_casual, hour) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean)) %>%
+  print(n = 48)
+
+cyclistic_date %>%
+  group_by(hour) %>%
+  summarise_at(vars(ride_length),
+            list(time = mean))
+
+# average ride length per time of day and member type
+avg_ride_lenght_per_time_of_day_and_member_type <- cyclistic_date %>%
+  group_by(time_of_day, member_casual) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+cyclistic_date %>%
+  group_by(time_of_day) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## morning
+cyclistic_date %>%
+  group_by(member_casual) %>%
+  filter(time_of_day == "Morning") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## afternoon
+cyclistic_date %>%
+  group_by(member_casual) %>%
+  filter(time_of_day == "Afternoon") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## evening
+cyclistic_date %>%
+  group_by(member_casual) %>%
+  filter(time_of_day == "Evening") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## night
+cyclistic_date %>%
+  group_by(member_casual) %>%
+  filter(time_of_day == "Night") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+
+
+# average ride length per day of week and member type
+avg_ride_length_per_day_of_week_and_member_type <- cyclistic_date %>%
+  group_by(member_casual, day_of_week) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+
+cyclistic_date %>%
+  group_by(day_of_week) %>%
+  summarise_at(vars(ride_length),
+            list(time = mean))
+
+# average ride length per day of month and member type
+avg_ride_length_per_day_of_month_and_member_type <- cyclistic_date %>%
+  group_by(member_casual, day) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean)) %>%
+  print(n = 62)
+
+cyclistic_date %>%
+  group_by(day) %>%
+  summarise_at(vars(ride_length),
+            list(time = mean)) %>%
+  print(n = 31)
+
+# average ride length per month and member type
+avg_ride_length_per_month_and_member_type <- cyclistic_date %>%
+  group_by(member_casual, month) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean)) %>%
+  print(n = 24)
+
+cyclistic_date %>%
+  group_by(month) %>%
+  summarise_at(vars(ride_length),
+            list(time = mean))
+
+
+# average ride length per season and member type
+avg_rides_per_season_and_member_type <- cyclistic_date %>%
+  group_by(season, member_casual) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+cyclistic_date %>%
+  group_by(season) %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## spring
+cyclistic_date %>%
+  filter(season == "Spring") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## summer
+cyclistic_date %>%
+  filter(season == "Summer") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## fall
+cyclistic_date %>%
+  filter(season == "Fall") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+## winter
+cyclistic_date %>%
+  filter(season == "Winter") %>%
+  summarise_at(vars(ride_length),
+               list(time = mean))
+
+
+
+
+
+
+# 8 new data frame to use in Tableau
+cyclistic_tableau <- cyclistic_date
+
+fwrite(cyclistic_tableau, "cyclistic_data.csv")
